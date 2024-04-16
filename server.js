@@ -152,7 +152,7 @@ const createPostsTable = async () => {
     try {
         // Define the SQL query to create the posts table
         const query = `
-            CREATE TABLE IF NOT EXISTS posts (
+            CREATE TABLE IF NOT EXISTS blog_posts (
                 id SERIAL PRIMARY KEY,
                 title VARCHAR(255) NOT NULL,
                 content TEXT NOT NULL,
@@ -167,6 +167,7 @@ const createPostsTable = async () => {
         console.error('Error creating posts table:', error);
     }
 };
+createPostsTable();
 
 // POST endpoint for creating a new blog post
 app.post('/api/posts', async (req, res) => {
@@ -174,13 +175,67 @@ app.post('/api/posts', async (req, res) => {
         const { title, content, author } = req.body;
 
         // Insert the new post into the posts table
-        const insertQuery = 'INSERT INTO posts (title, content, author) VALUES ($1, $2, $3) RETURNING *';
+        const insertQuery = 'INSERT INTO blog_posts (title, content, author) VALUES ($1, $2, $3) RETURNING *';
         const insertResult = await client.query(insertQuery, [title, content, author]);
 
         const newPost = insertResult.rows[0];
         res.status(201).json({ success: true, post: newPost });
     } catch (error) {
         console.error('Error posting blog:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
+
+app.get('/api/posts',verifyToken,async(req,res) => {
+    try{
+        const result = await client.query('select * from blog_posts');
+        res.status(200).json(result.rows)
+    }
+    catch (error){
+        console.error('error getting blog:',error.message)
+        res.status(500).json({message:'server error'})
+    }
+})
+
+// PUT endpoint for updating a blog post by ID
+app.put('/api/posts/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, content, author } = req.body;
+
+        // Update the post in the database
+        const updateQuery = 'UPDATE blog_posts SET title = $1, content = $2, author = $3 WHERE id = $4 RETURNING *';
+        const updateResult = await client.query(updateQuery, [title, content, author, id]);
+
+        if (updateResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Post not found' });
+        }
+
+        const updatedPost = updateResult.rows[0];
+        res.status(200).json({ success: true, post: updatedPost });
+    } catch (error) {
+        console.error('Error updating post:', error);
+        res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+});
+
+// DELETE endpoint for deleting a blog post by ID
+app.delete('/api/posts/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Delete the post from the database
+        const deleteQuery = 'DELETE FROM blog_posts WHERE id = $1 RETURNING *';
+        const deleteResult = await client.query(deleteQuery, [id]);
+
+        if (deleteResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Post not found' });
+        }
+
+        const deletedPost = deleteResult.rows[0];
+        res.status(200).json({ success: true, post: deletedPost });
+    } catch (error) {
+        console.error('Error deleting post:', error);
         res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 });
